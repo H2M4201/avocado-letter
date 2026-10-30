@@ -99,6 +99,14 @@ body {
   text-align: right;
 }
 
+.page-single {
+  left: 0;
+  width: 100%;
+  border: 2px solid #e0b97a;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
 .leaf {
   position: absolute;
   top: 0;
@@ -132,6 +140,37 @@ body {
   border-right: none;
   border-radius: 12px 0 0 12px;
 }
+
+.leaf-single {
+  left: 0;
+  width: 100%;
+}
+
+.leaf-single .leaf-front,
+.leaf-single .leaf-back {
+  border: 2px solid #e0b97a;
+  border-radius: 12px;
+}
+
+.nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 56px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.9);
+  color: #4a3b2a;
+  font-size: 1.9rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  z-index: 30;
+}
+
+.nav-prev { left: -14px; }
+.nav-next { right: -14px; }
 
 .flip-next { animation: flipNext 0.8s ease forwards; }
 .flip-prev { animation: flipPrev 0.8s ease forwards; }

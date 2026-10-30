@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 
 const LINES_PER_PAGE = 10;
 
-function paginate(text) {
+function paginate(text, mobile = false) {
   const scene = document.createElement("div");
   scene.className = "book-scene";
   scene.style.cssText = "position:fixed;left:-100000px;top:0;visibility:hidden";
   const book = document.createElement("div");
   book.className = "book";
   const page = document.createElement("div");
-  page.className = "page page-left";
+  page.className = mobile ? "page page-single" : "page page-left";
   const measure = document.createElement("div");
   measure.className = "page-text";
   page.appendChild(measure);
@@ -51,24 +51,40 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const [opened, setOpened] = useState(false);
   const [coverAnim, setCoverAnim] = useState(false);
-  const [spread, setSpread] = useState(0);
+  const [pos, setPos] = useState(0);
   const [flipping, setFlipping] = useState(null);
   const [text, setText] = useState("Đang tải thư...");
+  const [isMobile, setIsMobile] = useState(false);
 
   const [pages, setPages] = useState([text]);
 
-  // Chia nội dung thành các trang khi text/font đã sẵn sàng
+  // Tự nhận diện màn hình điện thoại
   useEffect(() => {
-    const compute = () => setPages(paginate(text));
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Khi chuyển đổi desktop/mobile thì quay về trang đầu
+  useEffect(() => {
+    setPos(0);
+    setFlipping(null);
+  }, [isMobile]);
+
+  // Chia nội dung thành các trang khi text/font/màn hình đã sẵn sàng
+  useEffect(() => {
+    const compute = () => setPages(paginate(text, isMobile));
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(compute);
     } else {
       compute();
     }
-    const onResize = () => setPages(paginate(text));
+    const onResize = () => setPages(paginate(text, isMobile));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [text]);
+  }, [text, isMobile]);
 
   // Đọc nội dung thư từ public/letter.txt
   useEffect(() => {
@@ -88,7 +104,7 @@ export default function App() {
   const openLetter = () => {
     setOpened(false);
     setCoverAnim(false);
-    setSpread(0);
+    setPos(0);
     setFlipping(null);
     setOpen(true);
   };
@@ -96,38 +112,44 @@ export default function App() {
   const totalPages = pages.length;
   const lastIdx = totalPages - 1;
 
-  const leftIdx = spread * 2;
-  const rightIdx = spread * 2 + 1;
-
   const pageAt = (i) => (i >= 0 && i < totalPages ? pages[i] : null);
   const isLast = (i) => i === lastIdx;
 
-  const canNext = !flipping && rightIdx + 1 < totalPages;
-  const canPrev = !flipping && spread > 0;
+  const step = isMobile ? 1 : 2;
+  const canNext = !flipping && pos + step < totalPages;
+  const canPrev = !flipping && pos > 0;
 
   const next = () => canNext && setFlipping("next");
   const prev = () => canPrev && setFlipping("prev");
 
   const onFlipEnd = () => {
-    if (flipping === "next") setSpread((s) => s + 1);
-    else if (flipping === "prev") setSpread((s) => s - 1);
+    if (flipping === "next") setPos((p) => p + step);
+    else if (flipping === "prev") setPos((p) => p - step);
     setFlipping(null);
   };
 
-  let baseLeftIdx = leftIdx;
-  let baseRightIdx = rightIdx;
+  // Desktop: trải 2 trang (left = pos, right = pos + 1)
+  let baseLeftIdx = pos;
+  let baseRightIdx = pos + 1;
   let leafFrontIdx = null;
   let leafBackIdx = null;
 
+  // Mobile: 1 trang, lật 1 trang mỗi lần
+  let singleIdx = pos;
+  let singleLeafIdx = null;
+
   if (flipping === "next") {
-    leafFrontIdx = rightIdx;
-    leafBackIdx = rightIdx + 1;
-    baseRightIdx = rightIdx + 2;
+    leafFrontIdx = pos + 1;
+    leafBackIdx = pos + 2;
+    baseRightIdx = pos + 3;
+    singleIdx = pos + 1;
+    singleLeafIdx = pos;
   } else if (flipping === "prev") {
-    leafFrontIdx = leftIdx - 1;
-    leafBackIdx = leftIdx;
-    baseLeftIdx = leftIdx - 2;
-    baseRightIdx = leftIdx - 1;
+    leafFrontIdx = pos - 1;
+    leafBackIdx = pos;
+    baseLeftIdx = pos - 2;
+    baseRightIdx = pos - 1;
+    singleLeafIdx = pos - 1;
   }
 
   return (
@@ -178,28 +200,61 @@ export default function App() {
       {open && (
         <div className="overlay" onClick={() => setOpen(false)}>
           <div className="book-scene" onClick={(e) => e.stopPropagation()}>
-            <div className="book">
-              <div className="page page-left" onClick={prev}>
-                <PageContent content={pageAt(baseLeftIdx)} last={isLast(baseLeftIdx)} />
-              </div>
-              <div className="page page-right" onClick={next}>
-                <PageContent content={pageAt(baseRightIdx)} last={isLast(baseRightIdx)} />
-              </div>
+            <div className={`book ${isMobile ? "mobile" : ""}`}>
+              {isMobile ? (
+                <>
+                  <div className="page page-single" onClick={next}>
+                    <PageContent content={pageAt(singleIdx)} last={isLast(singleIdx)} />
+                  </div>
 
-              {flipping && (
-                <div
-                  className={`leaf ${flipping === "next" ? "flip-next" : "flip-prev"}`}
-                  onAnimationEnd={onFlipEnd}
-                >
-                  <div className="leaf-face leaf-front">
-                    <PageContent content={pageAt(leafFrontIdx)} last={isLast(leafFrontIdx)} />
+                  {flipping && (
+                    <div
+                      className={`leaf leaf-single ${flipping === "next" ? "flip-next" : "flip-prev"}`}
+                      onAnimationEnd={onFlipEnd}
+                    >
+                      <div className="leaf-face leaf-front">
+                        <PageContent content={pageAt(singleLeafIdx)} last={isLast(singleLeafIdx)} />
+                      </div>
+                      <div className="leaf-face leaf-back" />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="page page-left" onClick={prev}>
+                    <PageContent content={pageAt(baseLeftIdx)} last={isLast(baseLeftIdx)} />
                   </div>
-                  <div className="leaf-face leaf-back">
-                    <PageContent content={pageAt(leafBackIdx)} last={isLast(leafBackIdx)} />
+                  <div className="page page-right" onClick={next}>
+                    <PageContent content={pageAt(baseRightIdx)} last={isLast(baseRightIdx)} />
                   </div>
-                </div>
+
+                  {flipping && (
+                    <div
+                      className={`leaf ${flipping === "next" ? "flip-next" : "flip-prev"}`}
+                      onAnimationEnd={onFlipEnd}
+                    >
+                      <div className="leaf-face leaf-front">
+                        <PageContent content={pageAt(leafFrontIdx)} last={isLast(leafFrontIdx)} />
+                      </div>
+                      <div className="leaf-face leaf-back">
+                        <PageContent content={pageAt(leafBackIdx)} last={isLast(leafBackIdx)} />
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
+
+            {isMobile && canPrev && (
+              <button className="nav-arrow nav-prev" aria-label="Trang trước" onClick={prev}>
+                ‹
+              </button>
+            )}
+            {isMobile && canNext && (
+              <button className="nav-arrow nav-next" aria-label="Trang sau" onClick={next}>
+                ›
+              </button>
+            )}
 
             {!opened && (
               <button
